@@ -1,0 +1,5 @@
+dist
+ClipOps.spec
+build
+__pycache__
+*.pyc
