@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import sys
 
 def seconds_to_vtt_fmt(seconds):
     """Converts seconds to HH:MM:SS.000 format."""
@@ -35,7 +36,29 @@ def ensure_icon_exists(icon_path):
             pass
 
 def run_ffmpeg_command(cmd, log_callback):
-    """Executes FFmpeg commands silently."""
+    """
+    نسخة ذكية تحدد مسار FFmpeg سواء في وضع التطوير أو الـ EXE
+    """
+    # 1. تحديد المسار الأساسي (Base Path)
+    if getattr(sys, 'frozen', False):
+        # لو البرنامج شغال كـ EXE، المسار هو مكان ملف الـ EXE
+        base_path = os.path.dirname(sys.executable)
+    else:
+        # لو البرنامج شغال كـ Python Script، المسار هو مكان الملف الحالي
+        base_path = os.getcwd()
+    
+    # 2. تحديد مسار ffmpeg.exe المتوقع بجانب البرنامج
+    local_ffmpeg = os.path.join(base_path, "ffmpeg.exe")
+    
+    # 3. تعديل الأمر لاستخدام الملف المحلي لو موجود
+    if os.path.exists(local_ffmpeg):
+        cmd[0] = local_ffmpeg
+        # log_callback(f"🔧 Using bundled FFmpeg: {local_ffmpeg}") # (اختياري للتبع)
+    else:
+        # لو مش موجود، حاول تعتمد على الـ System Path (بس ده خطر في الـ exe)
+        cmd[0] = "ffmpeg"
+
+    # 4. التنفيذ
     try:
         startupinfo = None
         if os.name == 'nt':
@@ -48,16 +71,24 @@ def run_ffmpeg_command(cmd, log_callback):
             stderr=subprocess.PIPE, 
             text=True, 
             encoding='utf-8', 
+            errors='replace',
             startupinfo=startupinfo
         )
-        process.wait()
+        
+        stdout, stderr = process.communicate()
         
         if process.returncode == 0:
             log_callback("✅ Operation Successful!")
             return True
         else:
-            log_callback("❌ Operation Failed (Check Console)!")
+            # عرض جزء من الخطأ للمستخدم
+            err_msg = stderr[-200:] if stderr else "Unknown Error"
+            log_callback(f"❌ FFmpeg Failed:\n{err_msg}")
             return False
+
+    except FileNotFoundError:
+        log_callback("❌ CRITICAL: 'ffmpeg.exe' missing!\nPlease put ffmpeg.exe in the same folder as this app.")
+        return False
     except Exception as e:
-        log_callback(f"❌ Execution Error: {str(e)}")
+        log_callback(f"❌ Error: {str(e)}")
         return False
