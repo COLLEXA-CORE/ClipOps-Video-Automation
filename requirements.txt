@@ -1,0 +1,4 @@
+customtkinter
+openai-whisper
+deep-translator
+pillow
